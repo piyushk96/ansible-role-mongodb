@@ -18,6 +18,15 @@
 # along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import (absolute_import, division, print_function)
+from ansible.module_utils._text import to_native
+from ansible.module_utils.six.moves import configparser
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from distutils.version import LooseVersion
+from datetime import datetime as dtdatetime
+import traceback
+import time
+import ssl as ssl_lib
+import os
 __metaclass__ = type
 
 DOCUMENTATION = '''
@@ -160,12 +169,6 @@ host_type:
   sample: "replica"
 '''
 
-import os
-import ssl as ssl_lib
-import time
-import traceback
-from datetime import datetime as dtdatetime
-from distutils.version import LooseVersion
 
 try:
     from pymongo.errors import ConnectionFailure, OperationFailure, AutoReconnect, ServerSelectionTimeoutError
@@ -181,9 +184,6 @@ except ImportError:
 else:
     pymongo_found = True
 
-from ansible.module_utils.basic import AnsibleModule, missing_required_lib
-from ansible.module_utils.six.moves import configparser
-from ansible.module_utils._text import to_native
 
 # =========================================
 # MongoDB module specific support methods.
@@ -216,13 +216,14 @@ def check_compatibility(module, client):
         module.fail_json(msg=' (Note: you must use pymongo 2.7+ with MongoDB 2.6)')
 
     elif LooseVersion(PyMongoVersion) <= LooseVersion('2.5'):
-        module.fail_json(msg=' (Note: you must be on mongodb 2.4+ and pymongo 2.5+ to use the roles param)')
+        module.fail_json(
+            msg=' (Note: you must be on mongodb 2.4+ and pymongo 2.5+ to use the roles param)')
 
 
 def check_members(state, module, client, host_name, host_port, host_type):
     local_db = client['local']
 
-    if local_db.system.replset.count() > 1:
+    if local_db.system.replset.count_documents({}) > 1:
         module.fail_json(msg='local.system.replset has unexpected contents')
 
     cfg = local_db.system.replset.find_one()
@@ -233,17 +234,21 @@ def check_members(state, module, client, host_name, host_port, host_type):
         if state == 'present':
             if host_type == 'replica':
                 if "{0}:{1}".format(host_name, host_port) in member['host']:
-                    module.exit_json(changed=False, host_name=host_name, host_port=host_port, host_type=host_type)
+                    module.exit_json(changed=False, host_name=host_name,
+                                     host_port=host_port, host_type=host_type)
             else:
                 if "{0}:{1}".format(host_name, host_port) in member['host'] and member['arbiterOnly']:
-                    module.exit_json(changed=False, host_name=host_name, host_port=host_port, host_type=host_type)
+                    module.exit_json(changed=False, host_name=host_name,
+                                     host_port=host_port, host_type=host_type)
         else:
             if host_type == 'replica':
                 if "{0}:{1}".format(host_name, host_port) not in member['host']:
-                    module.exit_json(changed=False, host_name=host_name, host_port=host_port, host_type=host_type)
+                    module.exit_json(changed=False, host_name=host_name,
+                                     host_port=host_port, host_type=host_type)
             else:
                 if "{0}:{1}".format(host_name, host_port) not in member['host'] and member['arbiterOnly']:
-                    module.exit_json(changed=False, host_name=host_name, host_port=host_port, host_type=host_type)
+                    module.exit_json(changed=False, host_name=host_name,
+                                     host_port=host_port, host_type=host_type)
 
 
 def add_host(module, client, host_name, host_port, host_type, timeout=180, **kwargs):
@@ -253,7 +258,7 @@ def add_host(module, client, host_name, host_port, host_type, timeout=180, **kwa
             admin_db = client['admin']
             local_db = client['local']
 
-            if local_db.system.replset.count() > 1:
+            if local_db.system.replset.count_documents({}) > 1:
                 module.fail_json(msg='local.system.replset has unexpected contents')
 
             cfg = local_db.system.replset.find_one()
@@ -286,7 +291,8 @@ def add_host(module, client, host_name, host_port, host_type, timeout=180, **kwa
             return
         except (OperationFailure, AutoReconnect) as e:
             if (dtdatetime.now() - start_time).seconds > timeout:
-                module.fail_json(msg='reached timeout while waiting for rs.reconfig(): %s' % to_native(e), exception=traceback.format_exc())
+                module.fail_json(msg='reached timeout while waiting for rs.reconfig(): %s' %
+                                 to_native(e), exception=traceback.format_exc())
             time.sleep(5)
 
 
@@ -296,7 +302,7 @@ def remove_host(module, client, host_name, timeout=180):
         try:
             local_db = client['local']
 
-            if local_db.system.replset.count() > 1:
+            if local_db.system.replset.count_documents({}) > 1:
                 module.fail_json(msg='local.system.replset has unexpected contents')
 
             cfg = local_db.system.replset.find_one()
@@ -311,11 +317,13 @@ def remove_host(module, client, host_name, timeout=180):
                 if host_name in member['host']:
                     cfg['members'].remove(member)
                 else:
-                    fail_msg = "couldn't find member with hostname: {0} in replica set members list".format(host_name)
+                    fail_msg = "couldn't find member with hostname: {0} in replica set members list".format(
+                        host_name)
                     module.fail_json(msg=fail_msg)
         except (OperationFailure, AutoReconnect) as e:
             if (dtdatetime.now() - start_time).seconds > timeout:
-                module.fail_json(msg='reached timeout while waiting for rs.reconfig(): %s' % to_native(e), exception=traceback.format_exc())
+                module.fail_json(msg='reached timeout while waiting for rs.reconfig(): %s' %
+                                 to_native(e), exception=traceback.format_exc())
             time.sleep(5)
 
 
@@ -340,7 +348,6 @@ def wait_for_ok_and_master(module, connection_params, timeout=180):
     while True:
         try:
             client = MongoClient(**connection_params)
-            authenticate(module, client, connection_params["username"], connection_params["password"])
 
             status = client.admin.command('replSetGetStatus', check=False)
             if status['ok'] == 1 and status['myState'] == 1:
@@ -356,18 +363,6 @@ def wait_for_ok_and_master(module, connection_params, timeout=180):
 
         time.sleep(1)
 
-
-def authenticate(module, client, login_user, login_password):
-    if login_user is None and login_password is None:
-        mongocnf_creds = load_mongocnf()
-        if mongocnf_creds is not False:
-            login_user = mongocnf_creds['user']
-            login_password = mongocnf_creds['password']
-        elif login_password is None and login_user is not None:
-            module.fail_json(msg='when supplying login arguments, both login_user and login_password must be provided')
-
-    if login_user is not None and login_password is not None:
-        client.admin.authenticate(login_user, login_password)
 
 # =========================================
 # Module execution.
@@ -387,7 +382,8 @@ def main():
             host_port=dict(default='27017'),
             host_type=dict(default='replica', choices=['replica', 'arbiter']),
             ssl=dict(default=False, type='bool'),
-            ssl_cert_reqs=dict(default='CERT_REQUIRED', choices=['CERT_NONE', 'CERT_OPTIONAL', 'CERT_REQUIRED']),
+            ssl_cert_reqs=dict(default='CERT_REQUIRED', choices=[
+                               'CERT_NONE', 'CERT_OPTIONAL', 'CERT_REQUIRED']),
             build_indexes=dict(type='bool', default='yes'),
             hidden=dict(type='bool', default='no'),
             priority=dict(default='1.0'),
@@ -424,9 +420,9 @@ def main():
                 "port": int(login_port),
                 "username": login_user,
                 "password": login_password,
-                "authsource": login_database,
-                "serverselectiontimeoutms": 5000,
-                "replicaset": replica_set,
+                "authSource": login_database,
+                "serverSelectionTimeoutMS": 5000,
+                "replicaSet": replica_set,
             }
 
         if ssl:
@@ -434,7 +430,6 @@ def main():
             connection_params["ssl_cert_reqs"] = getattr(ssl_lib, module.params['ssl_cert_reqs'])
 
         client = MongoClient(**connection_params)
-        authenticate(module, client, login_user, login_password)
         client['admin'].command('replSetGetStatus')
 
     except ServerSelectionTimeoutError:
@@ -444,16 +439,16 @@ def main():
                 "port": int(login_port),
                 "username": login_user,
                 "password": login_password,
-                "authsource": login_database,
-                "serverselectiontimeoutms": 10000,
+                "authSource": login_database,
+                "serverSelectionTimeoutMS": 10000,
             }
 
             if ssl:
                 connection_params["ssl"] = ssl
-                connection_params["ssl_cert_reqs"] = getattr(ssl_lib, module.params['ssl_cert_reqs'])
+                connection_params["ssl_cert_reqs"] = getattr(
+                    ssl_lib, module.params['ssl_cert_reqs'])
 
             client = MongoClient(**connection_params)
-            authenticate(module, client, login_user, login_password)
             if state == 'present':
                 new_host = {'_id': 0, 'host': "{0}:{1}".format(host_name, host_port)}
                 if priority != 1.0:
@@ -463,21 +458,24 @@ def main():
                 client.close()
                 wait_for_ok_and_master(module, connection_params)
                 replica_set_created = True
-                module.exit_json(changed=True, host_name=host_name, host_port=host_port, host_type=host_type)
+                module.exit_json(changed=True, host_name=host_name,
+                                 host_port=host_port, host_type=host_type)
         except OperationFailure as e:
-            module.fail_json(msg='Unable to initiate replica set: %s' % to_native(e), exception=traceback.format_exc())
+            module.fail_json(msg='Unable to initiate replica set: %s' %
+                             to_native(e), exception=traceback.format_exc())
     except ConnectionFailure as e:
-        module.fail_json(msg='unable to connect to database: %s' % to_native(e), exception=traceback.format_exc())
+        module.fail_json(msg='unable to connect to database: %s' %
+                         to_native(e), exception=traceback.format_exc())
 
     # reconnect again
     client = MongoClient(**connection_params)
-    authenticate(module, client, login_user, login_password)
     check_compatibility(module, client)
     check_members(state, module, client, host_name, host_port, host_type)
 
     if state == 'present':
         if host_name is None and not replica_set_created:
-            module.fail_json(msg='host_name parameter required when adding new host into replica set')
+            module.fail_json(
+                msg='host_name parameter required when adding new host into replica set')
 
         try:
             if not replica_set_created:
@@ -488,13 +486,15 @@ def main():
                          slave_delay=module.params['slave_delay'],
                          votes=module.params['votes'])
         except OperationFailure as e:
-            module.fail_json(msg='Unable to add new member to replica set: %s' % to_native(e), exception=traceback.format_exc())
+            module.fail_json(msg='Unable to add new member to replica set: %s' %
+                             to_native(e), exception=traceback.format_exc())
 
     elif state == 'absent':
         try:
             remove_host(module, client, host_name)
         except OperationFailure as e:
-            module.fail_json(msg='Unable to remove member of replica set: %s' % to_native(e), exception=traceback.format_exc())
+            module.fail_json(msg='Unable to remove member of replica set: %s' %
+                             to_native(e), exception=traceback.format_exc())
 
     module.exit_json(changed=True, host_name=host_name, host_port=host_port, host_type=host_type)
 
