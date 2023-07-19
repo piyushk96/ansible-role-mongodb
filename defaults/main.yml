@@ -15,6 +15,8 @@ mongodb_apt_key_url:
   "4.0": "https://www.mongodb.org/static/pgp/server-4.0.asc"
   "4.2": "https://www.mongodb.org/static/pgp/server-4.2.asc"
   "4.4": "https://www.mongodb.org/static/pgp/server-4.4.asc"
+  "5.0": "https://www.mongodb.org/static/pgp/server-5.0.asc"
+  "6.0": "https://www.mongodb.org/static/pgp/server-6.0.asc"
 
 mongodb_pymongo_from_pip: true                   # Install latest PyMongo via PIP or package manager
 mongodb_pymongo_pip_version: 3.11.3
