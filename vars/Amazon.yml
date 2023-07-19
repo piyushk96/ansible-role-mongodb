@@ -1,9 +1,9 @@
 ---
 mongodb_repository:
-  "4.4": "https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.4/x86_64/"
-  "4.2": "https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.2/x86_64/"
-  "4.0": "https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.0/x86_64/"
-  "3.6": "https://repo.mongodb.org/yum/amazon/2013.03/mongodb-org/3.6/x86_64/"
+  "4.4": "https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.4/{{ ansible_architecture }}/"
+  "4.2": "https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.2/{{ ansible_architecture }}/"
+  "4.0": "https://repo.mongodb.org/yum/amazon/2/mongodb-org/4.0/{{ ansible_architecture }}/"
+  "3.6": "https://repo.mongodb.org/yum/amazon/2013.03/mongodb-org/3.6/{{ ansible_architecture }}/"
 
 mongodb_repository_gpgkey:
   "4.4": "https://www.mongodb.org/static/pgp/server-4.4.asc"
