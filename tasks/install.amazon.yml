@@ -19,6 +19,14 @@
     loop_var: version_item
   when: mongodb_package == 'mongodb-org'
 
+# https://www.mongodb.com/community/forums/t/openssl-error-when-starting-mongosh/243323/3
+- name: Install correct mongosh
+  yum:
+    name: mongodb-mongosh-shared-openssl3
+    state: present
+  when: ansible_distribution_version == "2023"
+  become: true
+
 - name: Install MongoDB package
   yum:
     name: "{{ mongodb_package }}{% if (mongodb_version | length > 3) %}-{{ mongodb_version }}{% endif %}"
