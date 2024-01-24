@@ -423,6 +423,7 @@ def main():
                 "authSource": login_database,
                 "serverSelectionTimeoutMS": 5000,
                 "replicaSet": replica_set,
+                "directConnection": True
             }
 
         if ssl:
@@ -430,7 +431,7 @@ def main():
             connection_params["ssl_cert_reqs"] = getattr(ssl_lib, module.params['ssl_cert_reqs'])
 
         client = MongoClient(**connection_params)
-        client['admin'].command('replSetGetStatus')
+        client.admin.command('replSetGetStatus')
 
     except ServerSelectionTimeoutError:
         try:
@@ -441,6 +442,7 @@ def main():
                 "password": login_password,
                 "authSource": login_database,
                 "serverSelectionTimeoutMS": 10000,
+                "directConnection": True
             }
 
             if ssl:
@@ -449,12 +451,13 @@ def main():
                     ssl_lib, module.params['ssl_cert_reqs'])
 
             client = MongoClient(**connection_params)
+
             if state == 'present':
                 new_host = {'_id': 0, 'host': "{0}:{1}".format(host_name, host_port)}
                 if priority != 1.0:
                     new_host['priority'] = priority
                 config = {'_id': "{0}".format(replica_set), 'members': [new_host]}
-                client['admin'].command('replSetInitiate', config)
+                client.admin.command('replSetInitiate', config)  # Throwing error
                 client.close()
                 wait_for_ok_and_master(module, connection_params)
                 replica_set_created = True
